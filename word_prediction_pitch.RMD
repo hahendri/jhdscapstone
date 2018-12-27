@@ -1,0 +1,47 @@
+---
+title: "Data Science Capstone Pitch"
+author: "Harland Hendricks"
+date: "December 22, 2018"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Assignment
+
+- Pitch my word prediction app
+- Built with R version `r getRversion()`
+- The word prediction app helps you predict the the next word in a sentence
+      - Also gives four additional word suggestions
+      - Displays a graph with the frequency of up to 50 possible next words from the train data
+
+## Word Prediction App
+
+- You can access the word prediction app [here.](https://hahendri.shinyapps.io/jhdscapstone/)
+- Predicts next word and gives alternative suggestions
+      - Helps person save time typing by suggesting a word
+      - Saving time improves productivity
+
+## Using the Word Prediction App
+
+- Let the app load (about 15-20 seconds)
+- Type in an incomplete sentence in the user input form on the left side of the page
+- Click the predict button
+- Results are displayed in the display field on the right side of the page
+      - Predicted word (top left)
+      - Other suggested words (top right)
+      - Graph of frequencies for up to 50 suggested words from the train data (bottom)
+
+## Algorithm
+
+- Trained on 20 percent sample from the data located [here](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip) 
+- Built 1, 2, 3, 4, and 5-gram document frequency matricies
+      - Tabulated feature frequencies from the matrices
+      - Split the feature frequency table into base words (user input) and predicted word
+- Reduced size of tables by excluding single frequency n-grams for 3, 4, 5-grams for Shiny compatability
+- User input reduced to last, n-1, n-2, and n-3 words
+- Aggregated tables based on user input to group by base words 
+- Displays the predicted word with highest frequency and alternative suggestions
+- Displays a graph of up to 50 suggested words and their frequency within the train data

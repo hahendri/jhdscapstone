@@ -1,0 +1,13 @@
+name: jhdscapstone
+title: jhdscapstone
+username:
+account: hahendri
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 622278
+bundleId: 1779822
+url: https://hahendri.shinyapps.io/jhdscapstone/
+when: 1545505163.27581
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|exploretrain.html|exploretrain.rmd|README.md|text_prediction_capstone.R|tserver.R|week_one_quiz.R|week_three_quiz.R|week_two_quiz.R|xserver.R|data|exploretrain_files

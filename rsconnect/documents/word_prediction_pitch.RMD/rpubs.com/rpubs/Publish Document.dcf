@@ -1,0 +1,10 @@
+name: Publish Document
+title:
+username:
+account: rpubs
+server: rpubs.com
+hostUrl: rpubs.com
+appId: https://api.rpubs.com/api/v1/document/453737/7e710077062548c585df04304569e226
+bundleId: https://api.rpubs.com/api/v1/document/453737/7e710077062548c585df04304569e226
+url: http://rpubs.com/hahendri/453737
+when: 1545591374.29662

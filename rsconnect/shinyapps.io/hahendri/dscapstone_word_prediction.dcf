@@ -1,0 +1,13 @@
+name: dscapstone_word_prediction
+title: dscapstone_word_prediction
+username:
+account: hahendri
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 621884
+bundleId: 1779733
+url: https://hahendri.shinyapps.io/dscapstone_word_prediction/
+when: 1545498206.74508
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: .RData|exploretrain.html|exploretrain.rmd|README.md|text_prediction_capstone.R|tserver.R|week_one_quiz.R|week_three_quiz.R|week_two_quiz.R|xserver.R|data|exploretrain_files

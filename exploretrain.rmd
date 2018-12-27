@@ -1,0 +1,314 @@
+---
+title: "Exploratory Analysis of Train Data for Data Science Capstone"
+author: "Harland Hendricks"
+date: "November 27, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Executive Summary
+
+This report will walk you through the exploratory analysis of my training dataset 
+for the Johns Hopkins University Data Science Capstone.  The training dataset is
+only a fraction of the raw data (20%) to keep the size manageable when creating 
+larger n-gram dfms.
+
+With a training data set of just over 850K observations and 20M words, there are 
+some interesting insights:
+
+* Twitter is a majority of the observations
+* There is one observation that contains almost 1800 words
+* Characters per observation drops significantly after 140 characters (which happens to be the character limit for Twitter)
+* "just" and "like" are used a lot in blogs and Twitter; they are also in the top 5 overall
+* "rt" is in the top 50 overall, which isn't a word and could mean many things (Russian Times, right, rount trip, etc.)
+
+Next I will build a prediction algorithm with a Markov or MLE model based on my 
+research online.  This can always change as I watch the course videos.  I will also 
+build a Shiny App that takes a user input of three words and shows the next predicted 
+word from the model.
+
+##Train Dataset Creation
+
+The instructions for this assignment are located [here.](https://www.coursera.org/learn/data-science-project/peer/BRX21/milestone-report)
+
+Built with R version `r getRversion()` with the following system:
+
+```{r, echo = FALSE}
+Sys.info()
+```
+
+For this portion of the project I used the libraries readr, caret, quanteda, 
+and ggplot2 
+`r library(readr)``r library(caret)``r library(quanteda)``r library(ggplot2)`
+
+Since this assignment focuses on the exploratory analysis of the dataset, I have
+chosen not to display any of the code used to get and clean the data.
+
+The process I used can be summed up in the following:
+
+* Downloaded the data [here.](https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip)
+* Brought data into R as data frames
+* Combined the three data frames into one data frame with the following added columns:
+      + $label - Factor that identifies origin for line (blog, news, or twitter)
+      + $nchar - Number of characters in each line
+      + $words - Number of words in each line
+* Took a 20% sample using $label as the proportion for sample
+* Created a corpus and created a function that tokenized with the following attributes:
+      + Tokenized into words
+      + Removed symbols
+      + Removed numbers
+      + Removed punctuation
+      + Removed profanity as defined by [Google](https://www.freewebheaders.com/download/files/full-list-of-bad-words_text-file_2018_07_30.zip)
+* Created unigram dfm with stopwords removed, since I wanted to explore the non-stopwords
+
+```{r, cache = TRUE, include = FALSE}
+# Download and unzip the data, delete files that will not be needed.
+
+if (!file.exists("data")){
+      dir.create("data")  
+}      
+datasetfileURL <- "https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip"
+download.file(datasetfileURL, destfile = "./data/textdataset.zip", method="curl")
+unzip("./data/textdataset.zip", exdir = "./data")
+file.remove("./data/final/de_DE/de_DE.blogs.txt")
+file.remove("./data/final/de_DE/de_DE.news.txt")
+file.remove("./data/final/de_DE/de_DE.twitter.txt")
+file.remove("./data/final/fi_FI/fi_FI.blogs.txt")
+file.remove("./data/final/fi_FI/fi_FI.news.txt")
+file.remove("./data/final/fi_FI/fi_FI.twitter.txt")
+file.remove("./data/final/ru_RU/ru_RU.blogs.txt")
+file.remove("./data/final/ru_RU/ru_RU.news.txt")
+file.remove("./data/final/ru_RU/ru_RU.twitter.txt")
+file.remove("./data/textdataset.zip")
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Use readr to read txt files into R.
+
+raw.data.blogs <- read_lines("./data/final/en_US/en_US.blogs.txt", skip = 0, n_max = -1L, na = character(),
+           locale = default_locale(), progress = interactive())
+raw.data.news <- read_lines("./data/final/en_US/en_US.news.txt", skip = 0, n_max = -1L, na = character(),
+                             locale = default_locale(), progress = interactive())
+raw.data.twitter <- read_lines("./data/final/en_US/en_US.twitter.txt", skip = 0, n_max = -1L, na = character(),
+                             locale = default_locale(), progress = interactive())
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Convert raw.data.xxx into data frames.
+
+df.blogs <- as.data.frame(raw.data.blogs)
+df.news <- as.data.frame(raw.data.news)
+df.twitter <- as.data.frame(raw.data.twitter)
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Add label column to df.xxx to indicate where text came from for futher analysis, 
+# if warranted: convert label column to a factor, rename text column, change text 
+# column to character, and reorder columns.
+
+df.blogs$label <- "blog"
+      df.blogs$label <- as.factor(df.blogs$label)
+            colnames(df.blogs)[[1]] <- "text"
+                  df.blogs$text <- as.character(df.blogs$text)
+                        df.blogs <- df.blogs[ , c("label", "text")]
+df.news$label <- "news"
+      df.news$label <- as.factor(df.news$label)
+            colnames(df.news)[[1]] <- "text"
+                  df.news$text <- as.character(df.news$text)
+                        df.news <- df.news[ , c("label", "text")]
+df.twitter$label <- "twitter"
+      df.twitter$label <- as.factor(df.twitter$label)
+            colnames(df.twitter)[[1]] <- "text"
+                  df.twitter$text <- as.character(df.twitter$text)
+                        df.twitter <- df.twitter[ , c("label", "text")]
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Combine df.xxx data frames in order to sample.  We would like to maintain the 
+# proportion of the label column in the sample.  When working with Natural Language
+# Processing and N-Grams, the data increases enormously.  We are sampling to manage
+# the size of the training set.  Add column for number of characters in $text.  Add
+# column for number of words in $text
+
+df.combined <- rbind(df.blogs, df.news, df.twitter)
+df.combined$nchar <- nchar(df.combined$text)
+df.combined$words <- sapply(strsplit(df.combined$text, " "), length)
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Sample to reduce size of data and create training data set.  I am using 20% to get
+# a small sample set which reduces the number of lines from 4 million to 854 thousand.
+
+set.seed(1234)
+data.partition <- createDataPartition(df.combined$label, times = 1, p = 0.2, list = FALSE)
+train.data <- df.combined[data.partition,]
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Create Corpus from train.data
+
+train.corpus <- corpus(train.data)
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Develop token.function to Tokenize the Corpus in uni-grams to assigned object corpus.token.  
+# This includes tokenizing as words and removing punctuation, numbers, and symbols.  
+# Removing these shouldn't affect our model to predict next word.  I will also remove 
+# profanity since I don't want to predict profanity with my model
+
+token.function <- function(nameofcorpus, remove.profanity = TRUE) {
+      corpus.token <- tokens(nameofcorpus, what = "word", remove_numbers = TRUE,
+                             remove_symbols = TRUE, remove_punct = TRUE)
+
+# If.else for removing profanity based on remove.profanity argument.  Downloads 
+# Google's list of banned words as a txt document.
+      if(remove.profanity == TRUE) {
+            badwordsURL <- "https://www.freewebheaders.com/download/files/full-list-of-bad-words_text-file_2018_07_30.zip"
+            download.file(badwordsURL, destfile = "./data/badwords.zip", method="curl")
+            unzip("./data/badwords.zip", exdir = "./data")
+            file.remove("./data/badwords.zip")
+            bad.words <- read_lines("./data/full-list-of-bad-words_text-file_2018_07_30.txt", 
+                                    skip = 13, n_max = -1L, na = character(), 
+                                    locale = default_locale(), progress = interactive())
+            corpus.token <- tokens_remove(corpus.token, bad.words, valuetype = "fixed", 
+                                    verbose = TRUE)
+            str(corpus.token)
+      } else {
+            str(corpus.token)
+      }
+corpus.token <<- corpus.token 
+}
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Run token.function for train.corpus with remove profanity
+
+token.function(train.corpus, remove.profanity = TRUE)
+```
+
+```{r, cache = TRUE, include = FALSE}
+# Create unigram dfm with stopwords removed so we can get an idea of the most popular
+# non-stopwords
+
+train.dfm.stopwords <- dfm(corpus.token, remove = stopwords("english"))
+```
+
+## Exploratory Data Analysis of the Train Dataset
+
+Structure of train.data demonstrating the column names and type of data
+
+```{r, echo = FALSE, cache = TRUE}
+str(train.data)
+```
+
+Tables to show number of lines for each label and ratio to the whole train dataset 
+(document source: blog, news, or twitter)
+
+```{r, echo = FALSE, cache = TRUE}
+table(train.data$label)
+prop.table(table(train.data$label))
+```
+
+Summary of number of characters variable that shows range of values
+
+```{r, echo = FALSE, cache = TRUE}
+summary(train.data$nchar)
+```
+
+Summary of number of words variable that shows range of values
+
+```{r, echo = FALSE, cache = TRUE}
+summary(train.data$words)
+```
+
+Number of words in the train dataset (not unique words)
+
+```{r, echo = FALSE, cache = TRUE}
+sum(train.data$words)
+```
+
+Bar chart showing proportion of labels
+
+```{r, fig.height = 6, fig.width = 6, echo = FALSE, cache = TRUE}
+options(scipen = 999)
+g.label.bar <- ggplot(data = train.data, aes(label))
+g.label.bar + geom_bar(stat = "count") + labs(x = "Text Source", 
+            y = "Count of Observations", 
+            title = "Proportion of Text Source in Training Dataset")
+```
+
+Histogram of Train Dataset by Number of Characters
+
+```{r, fig.height = 6, fig.width = 6, echo = FALSE, cache = TRUE, message = FALSE, warning = FALSE}
+g.nchar.hist <- ggplot(data = train.data, aes(nchar))
+g.nchar.hist + geom_histogram(color = "darkblue", fill = "lightblue", binwidth = 10) + 
+      xlim(0, 500) + geom_vline(aes(xintercept = mean(nchar)), color = "black", 
+            linetype = "dashed", size = 1) + 
+      labs(x = "Number of Characters per Observation with >500 Removed and Mean Displayed", 
+            y = "Count", 
+            title = "Histogram of Characters per Observation in Training Dataset") +
+      geom_text(aes(label = round(mean(nchar), 0), y = 0, x = mean(nchar)),
+                vjust = -1, col = 'black', size = 3)
+```
+
+Histogram of Train Dataset by Number of Words
+
+```{r, fig.height = 6, fig.width = 6, echo = FALSE, cache = TRUE, message = FALSE, warning = FALSE}
+options(scipen = 999)
+g.word.hist <- ggplot(data = train.data, aes(words))
+g.word.hist + geom_histogram(color = "darkblue", fill = "lightblue", binwidth = 10) + xlim(0, 300) +
+      geom_vline(aes(xintercept = mean(words)), color = "black", linetype = "dashed", 
+                 size = 1) + 
+      labs(x = "Number of Words per Observation with >300 Removed and Mean Displayed", 
+           y = "Count", 
+           title = "Histogram of Words per Observation in Training Dataset") +
+      geom_text(aes(label = round(mean(words), 0), y = 0, x = mean(words)),
+                vjust = -1, col = 'black', size = 3)
+```
+
+Plot frequency of top 50 words from dfm with stopwords removed
+
+```{r, fig.height = 6, fig.width = 10, echo = FALSE, cache = TRUE}
+features.dfm.top <- textstat_frequency(train.dfm.stopwords, n = 50)
+features.dfm.top$feature <- with(features.dfm.top, reorder(feature, -frequency))
+
+ggplot(features.dfm.top, aes(x = feature, y = frequency)) +
+      geom_point() + 
+      theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+List of top 50 words per $label from dfm with stopwords removed (blog, news, twitter)
+
+```{r, echo = FALSE, cache = TRUE}
+features.dfm.group <- topfeatures(train.dfm.stopwords, n = 50, scheme = "docfreq",
+      groups = "label")
+
+names(features.dfm.group$blog)
+names(features.dfm.group$news)
+names(features.dfm.group$twitter)
+```
+
+### Exploratory Analysis Insights
+
+Exploring the data reveals the following:
+
+* There are over 850K observations in the sample with over 20M words
+* Twitter is a majority of the observations
+* There is one observation that contains almost 1800 words
+* Characters per observation drops significantly after 140 characters (which happens to be the character limit for Twitter)
+* "just" and "like" are used a lot in blogs and Twitter; they are also in the top 5 overall
+* "rt" is in the top 50 overall, which isn't a word and could mean many things (Russian Times, right, rount trip, etc.)
+
+## Next Steps with Prediction Algorithm and Shiny App
+
+My plan is to use a Markov or MLE mode with n-grams to build the prdiction algorithm,
+but I haven't watched the material for model building yet.  I just did a bit of
+research online.
+
+For the Shinny App I will have user input for three words of a sentence and the 
+model will predict the following word.
+
+
